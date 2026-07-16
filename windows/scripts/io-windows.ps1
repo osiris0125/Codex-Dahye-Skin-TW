@@ -1,4 +1,4 @@
-Set-StrictMode -Version Latest
+﻿Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
 $script:DahyeUtf8NoBom = [Text.UTF8Encoding]::new($false, $true)

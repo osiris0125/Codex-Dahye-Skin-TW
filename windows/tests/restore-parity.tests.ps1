@@ -1,4 +1,4 @@
-Set-StrictMode -Version Latest
+﻿Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
 $path = Join-Path $PSScriptRoot '..\scripts\restore-dahye-skin.ps1'
