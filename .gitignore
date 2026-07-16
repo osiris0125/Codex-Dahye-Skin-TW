@@ -1,0 +1,7 @@
+dist/
+windows/assets/dahye-hero.png
+windows/tests/tmp/
+state*.json
+*.log
+.DS_Store
+Thumbs.db
