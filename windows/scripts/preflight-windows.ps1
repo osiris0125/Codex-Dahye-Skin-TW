@@ -16,7 +16,10 @@ function Get-DahyeRecoveryToolRecords {
     'windows\scripts\start-dahye-skin.ps1',
     'windows\scripts\injector.mjs',
     'windows\scripts\preflight-windows.ps1',
-    'windows\scripts\package-windows.ps1'
+    'windows\scripts\package-windows.ps1',
+    'windows\scripts\common-windows.ps1',
+    'windows\scripts\io-windows.ps1',
+    'windows\scripts\state-windows.ps1'
   )
   if (Test-Path -LiteralPath (Join-Path $root 'package-manifest.json')) {
     $relativePaths += 'package-manifest.json'

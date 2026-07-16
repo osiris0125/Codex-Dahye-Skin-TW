@@ -1,0 +1,4 @@
+interface:
+  display_name: "Codex 李多慧繁中皮膚"
+  short_description: "安全套用並復原李多慧繁體中文 Codex 外觀"
+  default_prompt: "使用 $codex-dahye-skin-tw 安裝、套用、驗證、更新或復原 Windows Codex 李多慧繁體中文皮膚。"

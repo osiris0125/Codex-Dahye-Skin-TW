@@ -3,7 +3,7 @@
   const STYLE_ID = 'codex-dahye-skin-style';
   const CHROME_ID = 'codex-dahye-skin-chrome';
   const ROOT_CLASS = 'codex-dahye-skin';
-  const VERSION = '1.0.0';
+  const VERSION = '1.0.1';
 
   function detectDahyeScheme(doc = document, win = window) {
     const root = doc.documentElement;

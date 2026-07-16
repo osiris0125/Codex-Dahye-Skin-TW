@@ -21,21 +21,22 @@ foreach ($name in $files) {
 
 $start = $sources['start-dahye-skin.ps1']
 foreach ($token in @(
-  'Assert-NoLegacySkinSession','Assert-DahyeRecoveryBaselineCurrent','Get-RegisteredCodexPackage',
-  'Get-DahyeNodePath','Resolve-DahyePort','--remote-debugging-port','Wait-DahyeBrowserIdentity',
-  '--watch','--browser-id','Write-DahyeState','--verify','Invoke-DahyeStartRollback',
-  '-RelaunchOfficial:$codexLifecycleChanged'
+  'Assert-NoLegacySkinSession','Assert-DahyeRecoveryBaselineCurrent','Get-DahyeCodexInstall',
+  'Get-DahyeNodeRuntime','Select-DahyePort','--remote-debugging-address=127.0.0.1',
+  '--remote-debugging-port','Get-DahyeVerifiedCdpIdentity','Stop-DahyeCodex',
+  '--watch','--browser-id','Write-DahyeState','--verify','Stop-DahyeRecordedInjector',
+  'injector.log','injector-error.log','verify.log'
 )) {
   if (-not $start.Contains($token)) { throw "start 缺少安全步驟：$token" }
 }
 
 $verify = $sources['verify-dahye-skin.ps1']
-foreach ($token in @('Read-DahyeState','Test-DahyeRecordedProcess','--verify','--browser-id','--screenshot')) {
+foreach ($token in @('Read-DahyeState','Get-DahyeVerifiedCdpIdentity','Get-DahyeCodexInstallFromState','--verify','--browser-id','--screenshot')) {
   if (-not $verify.Contains($token)) { throw "verify 缺少身分步驟：$token" }
 }
 
 $restore = $sources['restore-dahye-skin.ps1']
-foreach ($token in @('SelfTest','touchesConfig = $false','Test-DahyeRecordedProcess','Archive-DahyeState','Wait-DahyePortClosed','shell:AppsFolder','OpenAI.Codex_2p2nqsd0c76g0!App')) {
+foreach ($token in @('SelfTest','touchesConfig = $false','Stop-DahyeRecordedInjector','Archive-DahyeStateFile','Wait-DahyePortAvailable','Get-DahyeCodexInstallFromState','Start-Process -FilePath $relaunchCodex.Executable')) {
   if (-not $restore.Contains($token)) { throw "restore 缺少復原步驟：$token" }
 }
 

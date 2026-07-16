@@ -13,7 +13,7 @@ function Get-DahyePackageSourceFiles {
   $root = [IO.Path]::GetFullPath($SourceRoot)
   $fixed = @(
     'README.md','AGENTS.md','LICENSE','SECURITY.md',
-    'docs\INSTALL_WITH_CODEX.md','windows\CHANGELOG.md'
+    'docs\INSTALL_WITH_CODEX.md','docs\UPSTREAM_WINDOWS_PARITY.md','windows\CHANGELOG.md'
   )
   $files = @()
   foreach ($relative in $fixed) {

@@ -53,6 +53,19 @@ assert.match(css, /prefers-reduced-motion:\s*reduce/);
 assert.match(css, /pointer-events:\s*none/);
 assert.match(css, /object-position:\s*62% 34%/);
 assert.match(css, /max-width:\s*1120px/);
+for (const surface of [
+  'data-dahye-surface="sidebar"',
+  'data-dahye-native-card',
+  'data-dahye-native-composer',
+  'data-dahye-native-project',
+]) {
+  assert.match(
+    css,
+    new RegExp('\\[' + surface + '\\]\\s+\\*'),
+    surface + ' 必須覆蓋皮膚接管表面內的原生深色文字',
+  );
+}
+assert.match(css, /::placeholder/, '輸入框必須提供亮暗模式都可讀的 placeholder 色彩');
 assert.match(rendererSource, /李多慧繁體中文主題/);
 assert.match(rendererSource, /今天一起完成什麼？/);
 assert.match(rendererSource, /跟著節奏，把靈感變成作品。/);

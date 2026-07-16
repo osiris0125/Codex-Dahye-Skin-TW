@@ -6,7 +6,7 @@ $required = @(
   'README.md', 'AGENTS.md', 'LICENSE', '.github\workflows\ci.yml',
   'docs\INSTALL_WITH_CODEX.md', 'windows\assets\dahye-skin.css',
   'windows\assets\renderer-inject.js', 'windows\scripts\install-dahye-skin.ps1',
-  'windows\scripts\restore-dahye-skin.ps1'
+  'windows\scripts\restore-dahye-skin.ps1', 'windows\SKILL.md', 'windows\agents\openai.yaml'
 )
 foreach ($relative in $required) {
   if (-not (Test-Path -LiteralPath (Join-Path $repo $relative))) { throw "公開 repo 缺少：$relative" }
@@ -42,6 +42,11 @@ foreach ($token in @('HeroPath','CodexDahyeSkin','package-v1','Invoke-DahyePubli
 $agent = Get-Content -Raw -LiteralPath (Join-Path $repo 'AGENTS.md')
 if (-not $agent.Contains('INSTALL_WITH_CODEX.md') -or -not $agent.Contains('-HeroPath')) {
   throw 'AGENTS.md 未提供 Codex 可執行的安裝契約。'
+}
+
+$skill = Get-Content -Raw -LiteralPath (Join-Path $repo 'windows\SKILL.md')
+foreach ($token in @('name: codex-dahye-skin-tw','-RestartExisting','config.toml','verify-dahye-skin.ps1')) {
+  if (-not $skill.Contains($token)) { throw "Windows skill 缺少上游同等契約：$token" }
 }
 
 Write-Host 'PASS public-repository.tests.ps1'

@@ -44,6 +44,13 @@
   box-shadow: 8px 0 30px rgb(25 25 40 / 7%) !important;
 }
 
+:root.codex-dahye-skin [data-dahye-surface="sidebar"] *,
+:root.codex-dahye-skin [data-dahye-native-card] *,
+:root.codex-dahye-skin [data-dahye-native-composer] *,
+:root.codex-dahye-skin [data-dahye-native-project] * {
+  color: var(--dahye-text) !important;
+}
+
 :root.codex-dahye-skin [data-dahye-surface="sidebar"] button,
 :root.codex-dahye-skin [data-dahye-surface="sidebar"] a {
   color: var(--dahye-text) !important;
@@ -259,6 +266,12 @@
   border-radius: 22px 16px 24px 16px !important;
   background: var(--dahye-surface) !important;
   box-shadow: var(--dahye-shadow) !important;
+}
+
+:root.codex-dahye-skin [data-dahye-native-composer] textarea::placeholder,
+:root.codex-dahye-skin [data-dahye-native-composer] input::placeholder {
+  color: var(--dahye-text-muted) !important;
+  opacity: 1;
 }
 
 :root.codex-dahye-skin [data-dahye-native-project] {

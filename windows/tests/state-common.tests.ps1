@@ -4,6 +4,11 @@ $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot '..\scripts\state-windows.ps1')
 . (Join-Path $PSScriptRoot '..\scripts\common-windows.ps1')
 
+$stateHelperSource = Get-Content -Raw -LiteralPath (Join-Path $PSScriptRoot '..\scripts\state-windows.ps1')
+foreach ($duplicate in @('function Write-DahyeState', 'function Read-DahyeState', 'function Archive-DahyeState')) {
+  if ($stateHelperSource.Contains($duplicate)) { throw "state helper 不得覆蓋上游共用狀態函式：$duplicate" }
+}
+
 function Assert-True([bool]$Condition, [string]$Message) {
   if (-not $Condition) { throw $Message }
 }
@@ -16,7 +21,7 @@ New-Item -ItemType Directory -Path $temp | Out-Null
 try {
   $statePath = Join-Path $temp 'state.json'
   $state = [pscustomobject]@{
-    schemaVersion = 1
+    schemaVersion = 3
     platform = 'windows'
     port = 9435
     injectorPid = 3210
@@ -27,22 +32,23 @@ try {
     codexPackageRoot = 'C:\Store\app'
     codexPackageFullName = 'OpenAI.Codex_1.0.0.0_x64__2p2nqsd0c76g0'
     codexPackageFamilyName = 'OpenAI.Codex_2p2nqsd0c76g0'
-    browserId = 'browser-abc'
-    startedAt = '2026-07-16T10:00:02.0000000Z'
-    recoveryBaselinePath = 'C:\State\recovery-baseline.json'
+    nodeVersion = '22.18.0'
+    codexVersion = '1.0.0.0'
+    browserId = '01234567-89ab-cdef-0123-456789abcdef'
+    profilePath = $null
+    createdAt = '2026-07-16T10:00:02.0000000Z'
   }
 
-  Write-DahyeState -State $state -StatePath $statePath
+  Write-DahyeState -State $state -Path $statePath
   $bytes = [IO.File]::ReadAllBytes($statePath)
   Assert-True (-not ($bytes.Length -ge 3 -and $bytes[0] -eq 0xEF -and $bytes[1] -eq 0xBB -and $bytes[2] -eq 0xBF)) 'state 必須是無 BOM UTF-8。'
-  $roundTrip = Read-DahyeState -StatePath $statePath
-  Assert-Equal $roundTrip.browserId 'browser-abc' 'Browser ID round-trip 失敗'
+  $roundTrip = Read-DahyeState -Path $statePath
+  Assert-Equal $roundTrip.browserId '01234567-89ab-cdef-0123-456789abcdef' 'Browser ID round-trip 失敗'
 
-  Assert-Equal (Resolve-DahyePort -ExplicitPort 9440 -PreferredPort 9435 -ScanCount 100 -PortProbe { param($port) $false }) 9440 '明確 port 應保留'
-  Assert-Equal (Resolve-DahyePort -ExplicitPort $null -PreferredPort 9435 -ScanCount 100 -PortProbe { param($port) $port -eq 9435 }) 9436 '應避開占用 port'
-  $explicitBusy = $false
-  try { Resolve-DahyePort -ExplicitPort 9440 -PortProbe { param($port) $true } | Out-Null } catch { $explicitBusy = $true }
-  Assert-True $explicitBusy '明確 port 被占用必須失敗'
+  Assert-DahyePort -Port 9440
+  $invalidPortRejected = $false
+  try { Assert-DahyePort -Port 80 } catch { $invalidPortRejected = $true }
+  Assert-True $invalidPortRejected '低於 1024 的連接埠必須被拒絕'
   Assert-True ((Get-DahyeOperationMutexName) -match '^Local\\CodexDahyeSkin\.Operation\.S-1-') 'mutex 必須包含使用者 SID'
   Assert-True ((Get-DahyeStateRoot) -like '*\CodexDahyeSkin\runtime') 'state 必須位於獨立 runtime 目錄'
   Assert-True (Test-DahyePathEqual -Left 'C:\Store\App\ChatGPT.exe' -Right 'c:\store\app\ChatGPT.exe') 'Windows 路徑比較必須不分大小寫'
@@ -68,7 +74,7 @@ try {
   }
   Assert-True (-not $newCommandActive) 'Dahye sibling 不得被誤判為舊 injector'
 
-  $archive = Archive-DahyeState -StatePath $statePath -Reason 'test'
+  $archive = Archive-DahyeStateFile -Path $statePath
   Assert-True (Test-Path $archive) '新 state 未封存'
   Assert-True (-not (Test-Path $statePath)) '封存後原 state 仍存在'
 } finally {

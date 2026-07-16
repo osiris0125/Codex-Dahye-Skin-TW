@@ -4,8 +4,9 @@ import { fileURLToPath } from "node:url";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(here, "..");
-const SKIN_VERSION = "1.0.0";
+const SKIN_VERSION = "1.0.1";
 export const DEFAULT_PORT = 9435;
+const PREVIEW_PAINT_SETTLE_MS = 850;
 const LOOPBACK_HOSTS = new Set(["127.0.0.1", "localhost", "[::1]", "::1"]);
 const BROWSER_ID_PATTERN = /^[A-Za-z0-9._-]{1,200}$/;
 
@@ -19,6 +20,7 @@ function parseArgs(argv) {
     screenshot: null,
     reload: false,
     browserId: null,
+    previewScheme: null,
   };
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i];
@@ -30,22 +32,29 @@ function parseArgs(argv) {
     else if (arg === "--timeout-ms") options.timeoutMs = Number(argv[++i]);
     else if (arg === "--browser-id") options.browserId = argv[++i];
     else if (arg === "--screenshot") options.screenshot = path.resolve(argv[++i]);
+    else if (arg === "--preview-scheme") options.previewScheme = argv[++i];
     else if (arg === "--reload") options.reload = true;
     else if (arg === "--self-test") options.mode = "self-test";
     else if (arg === "--check-payload") options.mode = "check-payload";
-    else throw new Error(`Unknown argument: ${arg}`);
+    else throw new Error(`未知參數：${arg}`);
   }
   if (!Number.isInteger(options.port) || options.port < 1024 || options.port > 65535) {
-    throw new Error(`Invalid port: ${options.port}`);
+    throw new Error(`無效的連接埠：${options.port}`);
   }
   if (!Number.isInteger(options.timeoutMs) || options.timeoutMs < 250 || options.timeoutMs > 120000) {
-    throw new Error(`Invalid timeout: ${options.timeoutMs}`);
+    throw new Error(`無效的逾時設定：${options.timeoutMs}`);
   }
   if (options.browserId !== null && !BROWSER_ID_PATTERN.test(options.browserId)) {
-    throw new Error(`Invalid browser ID: ${options.browserId}`);
+    throw new Error(`無效的瀏覽器 ID：${options.browserId}`);
+  }
+  if (options.previewScheme !== null && !["light", "dark"].includes(options.previewScheme)) {
+    throw new Error(`無效的預覽色彩模式：${options.previewScheme}`);
+  }
+  if (options.previewScheme !== null && options.mode !== "verify") {
+    throw new Error("--preview-scheme 只能用於驗證模式");
   }
   if (["watch", "once", "verify", "remove"].includes(options.mode) && !options.browserId) {
-    throw new Error(`--browser-id is required in ${options.mode} mode`);
+    throw new Error(`${options.mode} 模式必須提供 --browser-id`);
   }
   return options;
 }
@@ -55,7 +64,7 @@ function validatedDebuggerUrl(target, port) {
   const pathIsValid = /^\/devtools\/(?:page|browser)\/[A-Za-z0-9._-]{1,200}$/.test(url.pathname);
   if (url.protocol !== "ws:" || !LOOPBACK_HOSTS.has(url.hostname) || Number(url.port) !== port ||
       url.username || url.password || url.search || url.hash || !pathIsValid) {
-    throw new Error("Rejected a CDP WebSocket URL outside the allowed loopback endpoint shape");
+    throw new Error("已拒絕不符合允許格式的本機回環 CDP WebSocket URL");
   }
   return url.href;
 }
@@ -78,6 +87,7 @@ export function parseCli(argv) {
     port: parsed.port,
     browserId: parsed.browserId,
     screenshot: parsed.screenshot,
+    previewScheme: parsed.previewScheme,
   };
 }
 
@@ -92,7 +102,7 @@ function browserIdFromVersion(version, port) {
   const parsed = new URL(url);
   const match = parsed.pathname.match(/^\/devtools\/browser\/([A-Za-z0-9._-]{1,200})$/);
   if (!match || parsed.search || parsed.hash || !BROWSER_ID_PATTERN.test(match[1])) {
-    throw new Error("Rejected an invalid CDP browser identity URL");
+    throw new Error("已拒絕無效的 CDP 瀏覽器身分 URL");
   }
   return match[1];
 }
@@ -122,10 +132,10 @@ class CdpSession {
     await new Promise((resolve, reject) => {
       const timeout = setTimeout(() => {
         try { this.ws.close(); } catch {}
-        reject(new Error("CDP WebSocket open timed out"));
+        reject(new Error("開啟 CDP WebSocket 逾時"));
       }, 5000);
       this.ws.addEventListener("open", () => { clearTimeout(timeout); resolve(); }, { once: true });
-      this.ws.addEventListener("error", () => { clearTimeout(timeout); reject(new Error("CDP WebSocket open failed")); }, { once: true });
+      this.ws.addEventListener("error", () => { clearTimeout(timeout); reject(new Error("開啟 CDP WebSocket 失敗")); }, { once: true });
     });
     this.ws.addEventListener("message", (event) => this.onMessage(event));
     this.ws.addEventListener("error", () => this.close());
@@ -133,7 +143,7 @@ class CdpSession {
       this.closed = true;
       for (const waiter of this.pending.values()) {
         clearTimeout(waiter.timeout);
-        waiter.reject(new Error("CDP socket closed"));
+        waiter.reject(new Error("CDP 連線已關閉"));
       }
       this.pending.clear();
     });
@@ -169,12 +179,12 @@ class CdpSession {
   }
 
   send(method, params = {}) {
-    if (this.closed) return Promise.reject(new Error("CDP session is closed"));
+    if (this.closed) return Promise.reject(new Error("CDP 工作階段已關閉"));
     return new Promise((resolve, reject) => {
       const id = this.nextId++;
       const timeout = setTimeout(() => {
         this.pending.delete(id);
-        reject(new Error(`CDP command timed out: ${method}`));
+        reject(new Error(`CDP 命令逾時：${method}`));
       }, 10000);
       this.pending.set(id, { resolve, reject, timeout });
       try {
@@ -196,7 +206,7 @@ class CdpSession {
     });
     if (result.exceptionDetails) {
       const detail = result.exceptionDetails.exception?.description ?? result.exceptionDetails.text;
-      throw new Error(`Renderer evaluation failed: ${detail}`);
+      throw new Error(`Renderer 執行失敗：${detail}`);
     }
     return result.result?.value;
   }
@@ -204,7 +214,7 @@ class CdpSession {
   close() {
     for (const waiter of this.pending.values()) {
       clearTimeout(waiter.timeout);
-      waiter.reject(new Error("CDP session closed"));
+      waiter.reject(new Error("CDP 工作階段已關閉"));
     }
     this.pending.clear();
     if (!this.closed) {
@@ -229,19 +239,19 @@ class BrowserIdentityAnchor {
     await new Promise((resolve, reject) => {
       const timeout = setTimeout(() => {
         this.close();
-        reject(new Error("CDP browser identity WebSocket open timed out"));
+        reject(new Error("開啟 CDP 瀏覽器身分 WebSocket 逾時"));
       }, 5000);
       this.ws.addEventListener("open", () => { clearTimeout(timeout); resolve(); }, { once: true });
       this.ws.addEventListener("error", () => {
         clearTimeout(timeout);
-        reject(new Error("CDP browser identity WebSocket open failed"));
+        reject(new Error("開啟 CDP 瀏覽器身分 WebSocket 失敗"));
       }, { once: true });
       this.ws.addEventListener("close", () => {
         clearTimeout(timeout);
-        reject(new Error("CDP browser identity WebSocket closed during startup"));
+        reject(new Error("CDP 瀏覽器身分 WebSocket 在啟動期間關閉"));
       }, { once: true });
     });
-    if (this.closed) throw new Error("CDP browser identity WebSocket is already closed");
+    if (this.closed) throw new Error("CDP 瀏覽器身分 WebSocket 已關閉");
     return this;
   }
 
@@ -270,13 +280,13 @@ async function fetchCdpJson(port, resource) {
 
 async function listAppTargets(port, expectedBrowserId = null) {
   const targets = await fetchCdpJson(port, "/json/list");
-  if (!Array.isArray(targets)) throw new Error("CDP target list is not an array");
+  if (!Array.isArray(targets)) throw new Error("CDP 目標清單不是陣列");
   if (expectedBrowserId) {
     const version = await fetchCdpJson(port, "/json/version");
     const actualBrowserId = browserIdFromVersion(version, port);
     if (actualBrowserId !== expectedBrowserId) {
       throw new CdpIdentityMismatchError(
-        `CDP browser identity changed from ${expectedBrowserId} to ${actualBrowserId}`,
+        `CDP 瀏覽器身分已從 ${expectedBrowserId} 變更為 ${actualBrowserId}`,
       );
     }
   }
@@ -288,7 +298,7 @@ async function connectBrowserIdentityAnchor(port, expectedBrowserId) {
   const actualBrowserId = browserIdFromVersion(version, port);
   if (actualBrowserId !== expectedBrowserId) {
     throw new CdpIdentityMismatchError(
-      `CDP browser identity changed from ${expectedBrowserId} to ${actualBrowserId}`,
+      `CDP 瀏覽器身分已從 ${expectedBrowserId} 變更為 ${actualBrowserId}`,
     );
   }
   return new BrowserIdentityAnchor(validatedDebuggerUrl(version, port)).open();
@@ -325,12 +335,12 @@ async function connectTarget(target, port) {
   return new CdpSession(target, port).open();
 }
 
-async function connectCodexTargets(port, timeoutMs) {
+async function connectCodexTargets(port, timeoutMs, browserId) {
   const deadline = Date.now() + timeoutMs;
   let lastError;
   while (Date.now() < deadline) {
     try {
-      const targets = await listAppTargets(port, options.browserId);
+      const targets = await listAppTargets(port, browserId);
       const connected = [];
       for (const target of targets) {
         let session;
@@ -345,14 +355,14 @@ async function connectCodexTargets(port, timeoutMs) {
         }
       }
       if (connected.length) return connected;
-      lastError = new Error("No page matched the expected Codex shell markers");
+      lastError = new Error("沒有頁面符合預期的 Codex shell 標記");
     } catch (error) {
       if (error instanceof CdpIdentityMismatchError) throw error;
       lastError = error;
     }
     await new Promise((resolve) => setTimeout(resolve, 350));
   }
-  throw new Error(`No verified Codex renderer on 127.0.0.1:${port}: ${lastError?.message ?? "timed out"}`);
+  throw new Error(`127.0.0.1:${port} 上沒有已驗證的 Codex renderer：${lastError?.message ?? "逾時"}`);
 }
 
 async function applyToSession(session, payload) {
@@ -385,6 +395,54 @@ async function verifyRemovedSession(session) {
     !document.getElementById('codex-dahye-skin-chrome') &&
     !window.__CODEX_DAHYE_SKIN_STATE__
   )()`);
+}
+
+async function applyPreviewScheme(session, scheme) {
+  return session.evaluate(`(() => {
+    const root = document.documentElement;
+    const body = document.body;
+    const state = window.__CODEX_DAHYE_SKIN_STATE__;
+    state?.observer?.disconnect();
+    if (state?.timer) clearInterval(state.timer);
+    if (state?.scheduler?.timeout) clearTimeout(state.scheduler.timeout);
+    window.__CODEX_DAHYE_QA_PREVIEW__ = {
+      rootClassName: root.className,
+      rootTheme: root.getAttribute('data-theme'),
+      rootColorScheme: root.style.colorScheme,
+      bodyClassName: body?.className ?? '',
+      bodyTheme: body?.getAttribute('data-theme') ?? null,
+      skinScheme: root.getAttribute('data-dahye-scheme'),
+    };
+    root.classList.remove("dark", "light", "theme-dark", "theme-light");
+    root.classList.add(${JSON.stringify(scheme)});
+    root.setAttribute('data-theme', ${JSON.stringify(scheme)});
+    root.style.colorScheme = ${JSON.stringify(scheme)};
+    body?.setAttribute('data-theme', ${JSON.stringify(scheme)});
+    root.setAttribute('data-dahye-scheme', ${JSON.stringify(scheme)});
+    return root.getAttribute('data-dahye-scheme');
+  })()`);
+}
+
+async function restorePreviewScheme(session) {
+  return session.evaluate(`(() => {
+    const snapshot = window.__CODEX_DAHYE_QA_PREVIEW__;
+    if (!snapshot) return true;
+    const root = document.documentElement;
+    const body = document.body;
+    root.className = snapshot.rootClassName;
+    if (snapshot.rootTheme === null) root.removeAttribute('data-theme');
+    else root.setAttribute('data-theme', snapshot.rootTheme);
+    root.style.colorScheme = snapshot.rootColorScheme;
+    if (body) {
+      body.className = snapshot.bodyClassName;
+      if (snapshot.bodyTheme === null) body.removeAttribute('data-theme');
+      else body.setAttribute('data-theme', snapshot.bodyTheme);
+    }
+    if (snapshot.skinScheme === null) root.removeAttribute('data-dahye-scheme');
+    else root.setAttribute('data-dahye-scheme', snapshot.skinScheme);
+    delete window.__CODEX_DAHYE_QA_PREVIEW__;
+    return true;
+  })()`);
 }
 
 async function verifySession(session) {
@@ -475,8 +533,8 @@ async function capture(session, outputPath) {
 }
 
 async function runOneShot(options) {
-  const connected = await connectCodexTargets(options.port, options.timeoutMs);
-  const payload = (options.mode === "once" || options.reload) ? await loadPayload() : null;
+  const connected = await connectCodexTargets(options.port, options.timeoutMs, options.browserId);
+  const payload = (options.mode === "once" || options.reload || options.previewScheme) ? await loadPayload() : null;
   const results = [];
   let screenshotCaptured = false;
   try {
@@ -492,6 +550,13 @@ async function runOneShot(options) {
           await new Promise((resolve) => setTimeout(resolve, 1600));
           if (options.mode !== "remove") await applyToSession(session, payload);
         }
+        if (options.previewScheme) {
+          const appliedScheme = await applyPreviewScheme(session, options.previewScheme);
+          if (appliedScheme !== options.previewScheme) {
+            throw new Error(`預覽色彩模式未套用：${options.previewScheme}`);
+          }
+          await new Promise((resolve) => setTimeout(resolve, PREVIEW_PAINT_SETTLE_MS));
+        }
         const verified = options.mode === "remove"
           ? await verifyRemovedSession(session)
           : (options.reload || options.mode === "once" || options.mode === "verify")
@@ -503,6 +568,10 @@ async function runOneShot(options) {
           screenshotCaptured = true;
         }
       } finally {
+        if (options.previewScheme) {
+          await restorePreviewScheme(session);
+          await applyToSession(session, payload);
+        }
         session.close();
       }
     }
@@ -529,7 +598,7 @@ async function runWatch(options) {
     const delayMs = Math.min(30000, baseDelayMs * (2 ** Math.min(failures - 1, 4)));
     const now = Date.now();
     if (error && (failures === 1 || now - previous.lastLogAt >= 30000)) {
-      console.error(`[dahye-skin] inject failed for ${target.id}: ${error.message}; retrying in ${delayMs}ms`);
+      console.error(`[dahye-skin] 目標 ${target.id} 注入失敗：${error.message}；${delayMs}ms 後重試`);
       previous.lastLogAt = now;
     }
     targetFailures.set(target.id, { failures, lastLogAt: previous.lastLogAt, until: now + delayMs });
@@ -541,7 +610,7 @@ async function runWatch(options) {
     const payload = await loadPayload();
     while (!stopping) {
       if (identityAnchor.closed) {
-        console.error("[dahye-skin] original CDP browser identity closed; watcher is stopping instead of reconnecting");
+        console.error("[dahye-skin] 原始 CDP 瀏覽器身分已關閉；監看程序將停止，不會連到其他瀏覽器");
         process.exitCode = 3;
         break;
       }
@@ -553,7 +622,7 @@ async function runWatch(options) {
         listFailures += 1;
         const retryMs = Math.min(10000, 1000 * (2 ** Math.min(listFailures - 1, 4)));
         if (listFailures === 1 || Date.now() - lastListErrorLogAt >= 30000) {
-          console.error(`[dahye-skin] ${new Date().toISOString()} ${error.message}; retrying in ${retryMs}ms`);
+          console.error(`[dahye-skin] ${new Date().toISOString()} ${error.message}；${retryMs}ms 後重試`);
           lastListErrorLogAt = Date.now();
         }
         await new Promise((resolve) => setTimeout(resolve, retryMs));
@@ -579,7 +648,7 @@ async function runWatch(options) {
         let session;
         try {
           session = await connectTarget(target, options.port);
-          if (identityAnchor.closed) throw new CdpIdentityMismatchError("Original CDP browser identity closed");
+          if (identityAnchor.closed) throw new CdpIdentityMismatchError("原始 CDP 瀏覽器身分已關閉");
           const probe = await probeSession(session);
           if (!probe?.codex) {
             rejectTarget(target, 5000);
@@ -590,16 +659,16 @@ async function runWatch(options) {
           session.on("Page.loadEventFired", () => {
             setTimeout(() => applyToSession(session, payload).catch((error) => {
               if (Date.now() - lastReinjectErrorLogAt >= 30000) {
-                console.error(`[dahye-skin] reinject failed for ${target.id}: ${error.message}`);
+                console.error(`[dahye-skin] 目標 ${target.id} 重新注入失敗：${error.message}`);
                 lastReinjectErrorLogAt = Date.now();
               }
             }), 250);
           });
-          if (identityAnchor.closed) throw new CdpIdentityMismatchError("Original CDP browser identity closed");
+          if (identityAnchor.closed) throw new CdpIdentityMismatchError("原始 CDP 瀏覽器身分已關閉");
           await applyToSession(session, payload);
           sessions.set(target.id, session);
           targetFailures.delete(target.id);
-          console.log(`[dahye-skin] injected target ${target.id}`);
+          console.log(`[dahye-skin] 已注入目標 ${target.id}`);
         } catch (error) {
           session?.close();
           if (identityAnchor.closed || error instanceof CdpIdentityMismatchError) break;
@@ -633,7 +702,7 @@ if (options.mode === "self-test") {
   for (const value of invalid) {
     let rejected = false;
     try { validatedDebuggerUrl({ webSocketDebuggerUrl: value }, options.port); } catch { rejected = true; }
-    if (!rejected) throw new Error(`CDP URL validation accepted an unsafe URL: ${value}`);
+    if (!rejected) throw new Error(`CDP URL 驗證錯誤地接受了不安全 URL：${value}`);
   }
   const invalidBrowserUrls = [
     `ws://127.0.0.1:${options.port}/devtools/page/not-a-browser`,
@@ -643,7 +712,7 @@ if (options.mode === "self-test") {
   for (const value of invalidBrowserUrls) {
     let rejected = false;
     try { browserIdFromVersion({ webSocketDebuggerUrl: value }, options.port); } catch { rejected = true; }
-    if (!rejected) throw new Error(`Browser identity validation accepted an unsafe URL: ${value}`);
+    if (!rejected) throw new Error(`瀏覽器身分驗證錯誤地接受了不安全 URL：${value}`);
   }
   const validPageTarget = {
     id: "page-test",
@@ -659,13 +728,13 @@ if (options.mode === "self-test") {
   ];
   if (!valid || browserId !== "test-browser" || !isValidCdpPageTarget(validPageTarget, options.port) ||
       invalidPageTargets.some((item) => isValidCdpPageTarget(item, options.port))) {
-    throw new Error("CDP URL and target validation self-test failed");
+    throw new Error("CDP URL 與目標驗證自我測試失敗");
   }
   console.log(JSON.stringify({ pass: true, version: SKIN_VERSION, test: "loopback-cdp-validation" }));
 } else if (options.mode === "check-payload") {
   const payload = await loadPayload();
   if (payload.includes("__DAHYE_CSS_JSON__") || payload.includes("__DAHYE_HERO_DATA_URL__")) {
-    throw new Error("Payload placeholders were not fully replaced");
+    throw new Error("注入內容的預留標記未完整替換");
   }
   console.log(JSON.stringify({ pass: true, version: SKIN_VERSION, payloadBytes: Buffer.byteLength(payload) }));
 } else if (options.mode === "watch") await runWatch(options);

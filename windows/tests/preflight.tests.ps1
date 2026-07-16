@@ -11,7 +11,10 @@ $fixture = Join-Path $temp 'package-v1'
 $stateRoot = Join-Path $temp 'runtime'
 $scriptRoot = Join-Path $fixture 'windows\scripts'
 [IO.Directory]::CreateDirectory($scriptRoot) | Out-Null
-foreach ($name in @('restore-dahye-skin.ps1','start-dahye-skin.ps1','injector.mjs','preflight-windows.ps1','package-windows.ps1')) {
+foreach ($name in @(
+  'restore-dahye-skin.ps1','start-dahye-skin.ps1','injector.mjs','preflight-windows.ps1',
+  'package-windows.ps1','common-windows.ps1','io-windows.ps1','state-windows.ps1'
+)) {
   Copy-Item -LiteralPath (Join-Path $repo "windows\scripts\$name") -Destination (Join-Path $scriptRoot $name)
 }
 
@@ -30,6 +33,15 @@ try {
     -PackageProvider $packageProvider -NodeProvider $nodeProvider -RestoreSelfTest $selfTest | Out-Null
   $baselinePath = Join-Path $stateRoot 'recovery-baseline.json'
   if (-not (Test-Path -LiteralPath $baselinePath)) { throw 'preflight 未保存復原基線。' }
+  $baseline = Get-Content -Raw -LiteralPath $baselinePath -Encoding UTF8 | ConvertFrom-Json
+  $recordedPaths = @($baseline.recoveryTools | ForEach-Object { [string]$_.path })
+  foreach ($required in @(
+    'windows/scripts/common-windows.ps1',
+    'windows/scripts/io-windows.ps1',
+    'windows/scripts/state-windows.ps1'
+  )) {
+    if ($recordedPaths -notcontains $required) { throw "復原基線未保護相依檔：$required" }
+  }
   Assert-DahyeRecoveryBaselineCurrent -BaselinePath $baselinePath `
     -PackageProvider $packageProvider -NodeProvider $nodeProvider | Out-Null
 
