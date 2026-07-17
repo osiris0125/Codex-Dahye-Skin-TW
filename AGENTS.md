@@ -7,7 +7,7 @@
 3. 先跑 `windows/tests/run-tests.ps1`，通過後才執行安裝。
 4. 使用 `windows/scripts/install-dahye-skin.ps1 -HeroPath "<absolute-png-path>"`。
 5. 安裝完成只回報結果；未取得明確 restart 同意，不執行 start、不關閉 Codex。
-6. restart 同意後才執行 installed `start-dahye-skin.ps1 -RestartExisting`，再跑 verify 與亮暗模式實機驗收。
+6. restart 同意後才執行 installed `apply-dahye-skin.ps1`。它會把同步啟動交給 WMI 建立的獨立 Windows worker，再由 worker 執行 `start-dahye-skin.ps1 -RestartExisting`；重啟後檢查 `apply-result.json`，再跑 verify 與亮暗模式實機驗收。
 
 硬性禁止：
 

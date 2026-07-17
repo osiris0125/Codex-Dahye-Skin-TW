@@ -6,6 +6,7 @@ $required = @(
   'README.md', 'AGENTS.md', 'LICENSE', '.github\workflows\ci.yml',
   'docs\INSTALL_WITH_CODEX.md', 'windows\assets\dahye-skin.css',
   'windows\assets\renderer-inject.js', 'windows\scripts\install-dahye-skin.ps1',
+  'windows\scripts\apply-dahye-skin.ps1', 'windows\scripts\handoff-windows.ps1',
   'windows\scripts\restore-dahye-skin.ps1', 'windows\SKILL.md', 'windows\agents\openai.yaml'
 )
 foreach ($relative in $required) {

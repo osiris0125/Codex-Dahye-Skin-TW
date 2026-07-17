@@ -13,6 +13,8 @@ function Get-DahyeRecoveryToolRecords {
   $root = (Resolve-Path -LiteralPath $PackageRoot).Path
   $relativePaths = @(
     'windows\scripts\restore-dahye-skin.ps1',
+    'windows\scripts\apply-dahye-skin.ps1',
+    'windows\scripts\handoff-windows.ps1',
     'windows\scripts\start-dahye-skin.ps1',
     'windows\scripts\injector.mjs',
     'windows\scripts\preflight-windows.ps1',

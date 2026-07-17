@@ -12,7 +12,8 @@ $stateRoot = Join-Path $temp 'runtime'
 $scriptRoot = Join-Path $fixture 'windows\scripts'
 [IO.Directory]::CreateDirectory($scriptRoot) | Out-Null
 foreach ($name in @(
-  'restore-dahye-skin.ps1','start-dahye-skin.ps1','injector.mjs','preflight-windows.ps1',
+  'restore-dahye-skin.ps1','apply-dahye-skin.ps1','handoff-windows.ps1',
+  'start-dahye-skin.ps1','injector.mjs','preflight-windows.ps1',
   'package-windows.ps1','common-windows.ps1','io-windows.ps1','state-windows.ps1'
 )) {
   Copy-Item -LiteralPath (Join-Path $repo "windows\scripts\$name") -Destination (Join-Path $scriptRoot $name)
@@ -36,6 +37,8 @@ try {
   $baseline = Get-Content -Raw -LiteralPath $baselinePath -Encoding UTF8 | ConvertFrom-Json
   $recordedPaths = @($baseline.recoveryTools | ForEach-Object { [string]$_.path })
   foreach ($required in @(
+    'windows/scripts/apply-dahye-skin.ps1',
+    'windows/scripts/handoff-windows.ps1',
     'windows/scripts/common-windows.ps1',
     'windows/scripts/io-windows.ps1',
     'windows/scripts/state-windows.ps1'

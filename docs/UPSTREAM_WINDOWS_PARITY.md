@@ -12,17 +12,18 @@
 | CDP 身分 | 驗證監聽 PID、Store 執行檔、Browser ID、同 port loopback WebSocket、Codex page target | 相同 |
 | 注入生命週期 | Node watcher 維持 route／reload，記錄 PID、命令列、啟動時間與 Browser ID | 相同，並修正可匯入測試版本的 Browser ID 參數作用域 |
 | 失敗回滾 | 停止失敗工作階段並以無偵錯 port 的官方 Codex 重開 | 相同 |
-| 直接由 Codex 執行 | CLI 呼叫者使用 `-RestartExisting` | 相同；不要求使用者先手動點捷徑 |
+| 直接由 Codex 執行 | CLI 呼叫者同步執行 `-RestartExisting` | 先執行 `apply-dahye-skin.ps1`，由 WMI 建立獨立 worker，再呼叫相同的 `-RestartExisting` 核心流程 |
 
-Codex 關閉時，原本呼叫 PowerShell 的工具畫面可能顯示中止。這不等於安裝失敗；應以 runtime state、三份 log、已驗證 CDP 與重啟後的 verify 結果判定。
+實機發現目前 Codex 桌面版關閉時，可能把工具建立的同步子程序一起終止，因此不能只照搬上游的同步呼叫。獨立 worker 由 Windows 的 `WmiPrvSE.exe` 建立，不屬於 Codex；它不建立排程工作、服務或開機啟動項目。Codex 工具畫面仍可能顯示中止，真正結果以 `apply-result.json`、runtime state、日誌、已驗證 CDP 與重啟後的 verify 判定。
 
 ## 刻意不同的地方
 
 - 命名空間完全獨立：`%LOCALAPPDATA%\CodexDahyeSkin\package-v1` 與 `runtime`，不覆寫 Dream/Fiona。
+- 新增一次性的 WMI 程序交接，解決 Codex 關閉時同步啟動器被連帶終止的實機問題；worker 完成後自行退出，不留下常駐交接程序。
 - 全部使用臺灣繁體中文；UI 主題是李多慧粉絲自用構圖，但公開 repo 不包含真人照片。
 - 每位使用者以 `-HeroPath` 提供本機 PNG；圖片只進入本機建置套件，不回寫 Git。
 - 不沿用原專案的 base theme／config backup 功能；安裝、啟動、驗證與復原腳本均不讀寫 `config.toml` 或 `appearanceTheme`。
-- 安裝前先驗證 restore SelfTest，安裝後把 restore、start、injector、common、UTF-8 helper、state helper 等相依檔全部納入 SHA-256 復原基線。
+- 安裝前先驗證 restore SelfTest，安裝後把 restore、apply、handoff、start、injector、common、UTF-8 helper、state helper 等相依檔全部納入 SHA-256 復原基線。
 - 新增 light／dark 即時 DOM QA；切換只供截圖驗收，完成後還原原始 DOM 模式，不寫官方設定。
 
 ## 平台範圍

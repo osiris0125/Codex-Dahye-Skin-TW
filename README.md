@@ -14,7 +14,7 @@
 我要安裝 Codex 李多慧繁體中文皮膚；海報 PNG 路徑是「請填入你的圖片絕對路徑」。
 先執行全部測試與唯讀 preflight，確認官方 Store Codex、Node.js、復原 SelfTest 和圖片格式都通過。
 不得修改 WindowsApps、app.asar、config.toml、API Key、Base URL 或其他 Codex 設定。
-我明確同意安裝完成後立刻執行已安裝的 start-dahye-skin.ps1 -RestartExisting，
+我明確同意安裝完成後立刻執行已安裝的 apply-dahye-skin.ps1，
 讓目前 Codex 自行關閉並以官方 Store 執行檔重啟；重啟後執行 verify 與亮暗模式驗收。
 ```
 
@@ -23,7 +23,7 @@ Codex 會執行：
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\windows\tests\run-tests.ps1
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\windows\scripts\install-dahye-skin.ps1 -HeroPath "C:\你的圖片\dahye.png"
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$env:LOCALAPPDATA\CodexDahyeSkin\package-v1\windows\scripts\start-dahye-skin.ps1" -RestartExisting
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$env:LOCALAPPDATA\CodexDahyeSkin\package-v1\windows\scripts\apply-dahye-skin.ps1"
 ```
 
 ## 必要條件
@@ -41,7 +41,8 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$env:LOCALAPPDATA\Codex
 - 不修改官方 Codex 二進位、WindowsApps、`app.asar`、API Key、Base URL、`config.toml` 或 `appearanceTheme`。
 - 安裝前先執行 repo 自帶的 restore `-SelfTest`；失敗時不建立正式 package 或捷徑。
 - 啟動流程沿用原專案的安全生命週期：先正常關閉、重新查詢程序，必要時才強制停止；再驗證 Store 執行檔、CDP 監聽 PID、Browser ID 與同連接埠 WebSocket。
-- Codex 視窗關閉時，呼叫它的工具畫面可能顯示中止；真正結果以 `runtime\state.json`、`injector.log`、`injector-error.log`、`verify.log` 與重啟後 verify 為準。
+- 套用器把重啟交給由 Windows WMI 建立的獨立 worker；它不會隨 Codex 關閉而被終止，也不建立排程工作、服務或開機啟動項目。
+- Codex 視窗關閉時，呼叫它的工具畫面可能顯示中止；真正結果以 `runtime\apply-result.json`、`state.json`、`injector.log`、`injector-error.log`、`verify.log` 與重啟後 verify 為準。
 - Dream/Fiona 注入器仍在執行時只會拒絕啟動，不會停止舊程序。
 
 ## 圖片與公開散布

@@ -1,5 +1,11 @@
 # 變更紀錄
 
+## 1.0.2
+
+- 新增由 Windows WMI 建立的獨立重啟 worker，避免 Codex 關閉時連帶終止套用流程。
+- 桌面啟動捷徑改用 `apply-dahye-skin.ps1`，並新增 `apply-result.json`、套用日誌與失敗日誌。
+- 復原基線納入套用器與交接器雜湊；不新增排程工作、服務、開機啟動或 Codex 設定寫入。
+
 ## 1.0.1
 
 - Windows 啟動、CDP 身分、狀態 schema 3、日誌與回滾流程對齊上游 Codex Dream Skin。

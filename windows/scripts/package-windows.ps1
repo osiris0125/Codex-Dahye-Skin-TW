@@ -174,7 +174,7 @@ function New-DahyeShortcuts {
   param([Parameter(Mandatory)][string]$InstalledRoot, [Parameter(Mandatory)][string]$DesktopRoot)
   $shell = New-Object -ComObject WScript.Shell
   $definitions = @(
-    [pscustomobject]@{ Name='Codex 李多慧繁中皮膚.lnk'; Script='start-dahye-skin.ps1'; Extra=' -PromptForRestart'; Description='以李多慧繁體中文皮膚啟動 Codex' },
+    [pscustomobject]@{ Name='Codex 李多慧繁中皮膚.lnk'; Script='apply-dahye-skin.ps1'; Extra=''; Description='以獨立 Windows worker 重啟並套用李多慧繁體中文皮膚' },
     [pscustomobject]@{ Name='恢復官方 Codex 外觀（李多慧皮膚）.lnk'; Script='restore-dahye-skin.ps1'; Extra=''; Description='移除李多慧皮膚工作階段並重開官方 Codex' }
   )
   $created = @()
